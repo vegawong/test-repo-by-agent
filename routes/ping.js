@@ -1,0 +1,15 @@
+/**
+ * Ping 路由
+ * GET /api/ping
+ * 返回: { pong: true }
+ */
+const express = require('express');
+const router = express.Router();
+
+router.get('/', (req, res) => {
+  res.json({
+    pong: true,
+  });
+});
+
+module.exports = router;
