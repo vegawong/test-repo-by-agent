@@ -194,6 +194,16 @@
         .tile[data-value="1024"] { background: var(--tile-1024); color: var(--text-light); font-size: 24px; }
         .tile[data-value="2048"] { background: var(--tile-2048); color: var(--text-light); font-size: 24px; }
 
+        .tile[data-value="4096"],
+        .tile[data-value="8192"],
+        .tile[data-value="16384"],
+        .tile[data-value="32768"],
+        .tile[data-value="65536"] {
+            background: #3c3a32;
+            color: var(--text-light);
+            font-size: 20px;
+        }
+
         .game-over-overlay {
             position: absolute;
             top: 0;
@@ -280,6 +290,11 @@
             .tile[data-value="2048"] {
                 font-size: 18px;
             }
+
+            .tile[data-value="10000"],
+            .tile[data-value="100000"] {
+                font-size: 14px;
+            }
         }
 
         @media (max-width: 380px) {
@@ -332,6 +347,11 @@
             <div class="final-score">Final Score: <span id="finalScore">0</span></div>
             <button class="try-again-btn" id="tryAgainBtn">Try Again</button>
         </div>
+        <div class="game-over-overlay" id="winOverlay">
+            <div class="game-over-text">You Win!</div>
+            <div class="final-score">Final Score: <span id="winScore">0</span></div>
+            <button class="try-again-btn" id="continueBtn">Continue Game</button>
+        </div>
     </div>
 
     <script>
@@ -347,6 +367,7 @@
                 this.bestScore = this.loadBestScore();
                 this.isAnimating = false;
                 this.isGameOver = false;
+                this.hasWon = false;
                 this.init();
             }
 
@@ -354,7 +375,7 @@
                 this.grid = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(0));
                 this.score = 0;
                 this.isGameOver = false;
-                this.spawnTile();
+                this.hasWon = false;
                 this.spawnTile();
             }
 
@@ -412,6 +433,18 @@
                 }
                 this.isGameOver = true;
                 return true;
+            }
+
+            checkWin() {
+                for (let r = 0; r < GRID_SIZE; r++) {
+                    for (let c = 0; c < GRID_SIZE; c++) {
+                        if (this.grid[r][c] === 2048) {
+                            this.hasWon = true;
+                            return true;
+                        }
+                    }
+                }
+                return false;
             }
         }
 
@@ -586,20 +619,6 @@
                 return tiles;
             }
 
-            mergeTiles(mergedPositions) {
-                mergedPositions.forEach(pos => {
-                    const tiles = this.container.querySelectorAll('.tile');
-                    tiles.forEach(tile => {
-                        const posInfo = this.getTilePosition(pos.r, pos.c);
-                        if (tile.style.transform.includes(`${posInfo.x}px`) && tile.style.transform.includes(`${posInfo.y}px`)) {
-                            tile.dataset.value = pos.value;
-                            tile.textContent = pos.value;
-                            tile.classList.add('merged');
-                        }
-                    });
-                });
-            }
-
             showScorePopup(points) {
                 const popup = document.getElementById('scorePopup');
                 popup.textContent = '+' + points;
@@ -608,25 +627,6 @@
                 popup.classList.add('animate');
             }
 
-            updateTilePositions(tiles, oldGrid, newGrid, mergedPositions) {
-                const mergedSet = new Set(mergedPositions.map(p => `${p.r},${p.c}`));
-                
-                setTimeout(() => {
-                    Object.values(tiles).forEach(tile => tile.remove());
-                    
-                    for (let r = 0; r < GRID_SIZE; r++) {
-                        for (let c = 0; c < GRID_SIZE; c++) {
-                            if (newGrid[r][c] !== 0 && !mergedSet.has(`${r},${c}`)) {
-                                this.createTileElement(newGrid[r][c], r, c);
-                            }
-                        }
-                    }
-
-                    mergedPositions.forEach(pos => {
-                        this.createTileElement(pos.value, pos.r, pos.c);
-                    });
-                }, ANIM_DURATION);
-            }
         }
 
         class InputHandler {
@@ -714,6 +714,9 @@
                 document.getElementById('tryAgainBtn').addEventListener('click', () => {
                     window.gameController.newGame();
                 });
+                document.getElementById('continueBtn').addEventListener('click', () => {
+                    window.gameController.continueGame();
+                });
             }
 
             renderBoard(grid, newTiles = []) {
@@ -745,6 +748,15 @@
             hideGameOver() {
                 document.getElementById('gameOverOverlay').classList.remove('show');
             }
+
+            showWin(score) {
+                document.getElementById('winScore').textContent = score;
+                document.getElementById('winOverlay').classList.add('show');
+            }
+
+            hideWin() {
+                document.getElementById('winOverlay').classList.remove('show');
+            }
         }
 
         class GameController {
@@ -766,8 +778,13 @@
             newGame() {
                 this.state.init();
                 this.renderer.hideGameOver();
+                this.renderer.hideWin();
                 this.renderer.renderBoard(this.state.grid);
                 this.renderer.updateScore(this.state.score, this.state.bestScore);
+            }
+
+            continueGame() {
+                this.renderer.hideWin();
             }
 
             move(direction) {
@@ -813,6 +830,13 @@
                     }
 
                     this.state.spawnTile();
+                    
+                    const has2048 = mergedPositions.some(p => p.value === 2048);
+                    if (has2048 && !this.state.hasWon) {
+                        this.state.checkWin();
+                        this.renderer.showWin(this.state.score);
+                    }
+                    
                     const newTilePos = this.state.getEmptyCells();
                     
                     setTimeout(() => {
